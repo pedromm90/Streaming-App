@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,6 +16,7 @@
             align-items: center;
             height: 100vh;
         }
+
         .container {
             text-align: center;
             padding: 40px;
@@ -24,8 +26,19 @@
             max-width: 320px;
             width: 100%;
         }
-        h1 { font-size: 1.5rem; font-weight: 400; margin-bottom: 10px; }
-        p { color: #888; font-size: 0.9rem; margin-bottom: 25px; }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 400;
+            margin-bottom: 10px;
+        }
+
+        p {
+            color: #888;
+            font-size: 0.9rem;
+            margin-bottom: 25px;
+        }
+
         .code-input {
             width: 70%;
             padding: 12px;
@@ -39,6 +52,7 @@
             letter-spacing: 2px;
             outline: none;
         }
+
         .listen-btn {
             width: 120px;
             height: 120px;
@@ -52,25 +66,37 @@
             transition: all 0.3s ease;
             box-shadow: 0 0 20px rgba(0, 119, 255, 0.4);
         }
+
         .listen-btn.listening {
             background: linear-gradient(145deg, #00ffcc, #00aa88);
             box-shadow: 0 0 30px rgba(0, 255, 204, 0.6);
             color: #0d0d0d;
         }
-        .status { margin-top: 25px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 2px; color: #888; }
-        .status.online { color: #00ffcc; }
+
+        .status {
+            margin-top: 25px;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #888;
+        }
+
+        .status.online {
+            color: #00ffcc;
+        }
     </style>
 </head>
+
 <body>
 
     <div class="container">
         <h1>RECEPTOR RADIO</h1>
         <p>Introduce el código de sintonía</p>
-        
+
         <input type="number" id="codeStream" class="code-input" placeholder="00000">
-        
+
         <button id="listenButton" class="listen-btn">CONECTAR</button>
-        
+
         <div id="statusText" class="status">DESCONECTADO</div>
     </div>
 
@@ -94,15 +120,16 @@
                 try {
                     statusText.innerText = "SINTONIZANDO...";
 
-                    // 1. Obtener los datos del emisor usando el ID corto desde la API pública
-                    const response = await fetch(`https://keyvalue.xyz/v1/radio-stream-${inputId}`);
-                    if(!response.ok) throw new Error();
-                    const rawData = await response.text();
-                    const offer = JSON.parse(atob(rawData));
+                    // 1. Obtener los datos del emisor desde la API de JsonBlob usando el código ingresado
+                    const response = await fetch(`https://jsonblob.com/api/jsonBlob/radio-stream-${inputId}`);
+                    if (!response.ok) throw new Error("Señal no encontrada");
 
-                    // 2. Conexión de red nativa
+                    const data = await response.json();
+                    const offer = JSON.parse(atob(data.sdp));
+
+                    // 2. Conexión de red nativa WebRTC (Sigue igual)
                     window.peerConnection = new RTCPeerConnection(rtcConfig);
-                    
+
                     window.peerConnection.ontrack = (event) => {
                         if (event.streams && event.streams[0]) {
                             remoteAudio.srcObject = event.streams[0];
@@ -119,10 +146,12 @@
                     statusText.innerText = "ESCUCHANDO EN VIVO";
                     statusText.classList.add('online');
 
+
+
                 } catch (error) {
                     console.error(error);
                     statusText.innerText = "CÓDIGO INVÁLIDO";
-                    alert("No se encontró una transmisión activa con ese código.");
+                    alert("No se encontró una transmisión activa con ese código o la señal expiró.");
                 }
             } else {
                 if (window.peerConnection) window.peerConnection.close();
@@ -139,5 +168,5 @@
         listenButton.addEventListener('click', toggleListen);
     </script>
 </body>
-</html>
 
+</html>

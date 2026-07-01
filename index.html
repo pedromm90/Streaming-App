@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,6 +16,7 @@
             align-items: center;
             height: 100vh;
         }
+
         .container {
             text-align: center;
             padding: 40px;
@@ -24,8 +26,19 @@
             max-width: 320px;
             width: 100%;
         }
-        h1 { font-size: 1.5rem; font-weight: 400; margin-bottom: 10px; }
-        p { color: #888; font-size: 0.9rem; margin-bottom: 30px; }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 400;
+            margin-bottom: 10px;
+        }
+
+        p {
+            color: #888;
+            font-size: 0.9rem;
+            margin-bottom: 30px;
+        }
+
         .stream-btn {
             width: 120px;
             height: 120px;
@@ -40,11 +53,13 @@
             box-shadow: 0 0 20px rgba(255, 51, 102, 0.4);
             margin-bottom: 25px;
         }
+
         .stream-btn.streaming {
             background: linear-gradient(145deg, #00ffcc, #00aa88);
             box-shadow: 0 0 30px rgba(0, 255, 204, 0.6);
             color: #0d0d0d;
         }
+
         .id-box {
             display: none;
             background: #252525;
@@ -58,20 +73,31 @@
             cursor: pointer;
             margin-top: 10px;
         }
-        .status { margin-top: 25px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 2px; color: #ff3366; }
-        .status.online { color: #00ffcc; }
+
+        .status {
+            margin-top: 25px;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #ff3366;
+        }
+
+        .status.online {
+            color: #00ffcc;
+        }
     </style>
 </head>
+
 <body>
 
     <div class="container">
         <h1>EMISOR RADIO</h1>
         <p>Cualquier micrófono / interfaz USB</p>
-        
+
         <button id="streamButton" class="stream-btn">EN VIVO</button>
-        
+
         <div id="idBox" class="id-box">00000</div>
-        
+
         <div id="statusText" class="status">APAGADO</div>
     </div>
 
@@ -79,7 +105,7 @@
         const streamButton = document.getElementById('streamButton');
         const statusText = document.getElementById('statusText');
         const idBox = document.getElementById('idBox');
-        
+
         let isStreaming = false;
         window.audioContext = null;
         window.mediaStream = null;
@@ -115,21 +141,31 @@
 
                     window.peerConnection.onicecandidate = async (event) => {
                         if (event.candidate === null) {
-                            // Guardar los datos de conexión complejos en la nube usando el ID corto como llave
-                            const sdpData = btoa(JSON.stringify(window.peerConnection.localDescription));
-                            
-                            statusText.innerText = "PUBLICANDO SEÑAL...";
-                            // Enviamos los datos a una API pública temporal usando solo JS nativo
-                            await fetch(`https://keyvalue.xyz/v1/radio-stream-${shortId}`, {
-                                method: 'POST',
-                                body: sdpData
-                            });
+                            // Formateamos los datos de conexión como un JSON válido
+                            const sdpPayload = { sdp: btoa(JSON.stringify(window.peerConnection.localDescription)) };
 
-                            // Mostrar el ID corto en pantalla
-                            idBox.innerText = shortId;
-                            idBox.style.display = 'block';
-                            statusText.innerText = "TRANSMITIENDO EN VIVO";
-                            statusText.classList.add('online');
+                            statusText.innerText = "PUBLICANDO SEÑAL...";
+
+                            try {
+                                // Guardamos el objeto directamente en JsonBlob usando el ID corto
+                                // Nota: Para que sea identificable, lo enviamos en una estructura limpia
+                                await fetch(`https://jsonblob.com/api/jsonBlob/radio-stream-${shortId}`, {
+                                    method: 'PUT', // PUT crea o reemplaza el almacén con ese nombre ficticio
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify(sdpPayload)
+                                });
+
+                                // Mostrar el ID corto de 5 dígitos en pantalla
+                                idBox.innerText = shortId;
+                                idBox.style.display = 'block';
+                                statusText.innerText = "TRANSMITIENDO EN VIVO";
+                                statusText.classList.add('online');
+
+                            } catch (err) {
+                                console.error("Error al publicar en el servidor proxy:", err);
+                                statusText.innerText = "ERROR DE SERVIDOR";
+                            }
+
                         }
                     };
 
@@ -165,4 +201,5 @@
         streamButton.addEventListener('click', toggleStream);
     </script>
 </body>
+
 </html>
