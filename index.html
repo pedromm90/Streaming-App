@@ -141,46 +141,32 @@
 
                     window.peerConnection.onicecandidate = async (event) => {
                         if (event.candidate === null) {
-                            // Formateamos los datos de conexión como un JSON válido
-                            const sdpPayload = {
-                                streamId: shortId,
-                                sdp: btoa(JSON.stringify(window.peerConnection.localDescription))
-                            };
+                            // Encriptamos los datos en Base64 para enviarlo como texto plano limpio
+                            const sdpEncriptado = btoa(JSON.stringify(window.peerConnection.localDescription));
 
                             statusText.innerText = "PUBLICANDO SEÑAL...";
 
                             try {
-                                // Hacemos un POST limpio a la ruta raíz de la API (Esto no activa CORS)
-                                const response = await fetch(`https://jsonblob.com/api/jsonBlob`, {
+                                // Enviamos los datos como texto plano (text/plain) usando un cubo público en kvdb.io.
+                                // Al usar texto plano, el navegador NO realiza la petición "Preflight" y salta el error CORS por completo.
+                                const response = await fetch(`https://kvdb.io/MNY7gYm67v8uVp4A8Yn6R2/stream-${shortId}`, {
                                     method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                        'Accept': 'application/json'
-                                    },
-                                    body: JSON.stringify(sdpPayload)
+                                    body: sdpEncriptado
                                 });
 
                                 if (!response.ok) throw new Error();
 
-                                // Guardamos el ID del blob oficial en el almacenamiento del navegador por si se requiere,
-                                // pero de cara al usuario mostramos tu código de 5 dígitos
+                                // Mostrar el ID corto en pantalla
                                 idBox.innerText = shortId;
                                 idBox.style.display = 'block';
                                 statusText.innerText = "TRANSMITIENDO EN VIVO";
                                 statusText.classList.add('online');
 
-                                // Pasamos el objeto a la nube. Para que el receptor lo encuentre de forma masiva,
-                                // usaremos una alternativa infalible sin CORS: guardar la relación en una sincronización nativa.
-                                // Para asegurar la compatibilidad total en Netlify, guardamos una copia de respaldo en la sesión local.
-                                window.localStorage.setItem(`stream-${shortId}`, sdpPayload.sdp);
-
                             } catch (err) {
-                                console.error("Error de CORS o Red:", err);
-                                // Plan de respaldo inmediato si la API externa falla en tu red: Conexión local simulada
+                                console.error("Error en servidor:", err);
                                 idBox.innerText = shortId;
                                 idBox.style.display = 'block';
-                                statusText.innerText = "TRANSMITIENDO LOCALMENTE";
-                                statusText.classList.add('online');
+                                statusText.innerText = "ERROR DE RED EXTERNA";
                             }
                         }
                     };

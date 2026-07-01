@@ -120,23 +120,14 @@
                 try {
                     statusText.innerText = "SINTONIZANDO...";
 
-                    let sdpEncriptado = "";
+                    // 1. Obtener la señal de audio directamente usando el código corto
+                    const response = await fetch(`https://kvdb.io/MNY7gYm67v8uVp4A8Yn6R2/stream-${inputId}`);
+                    if (!response.ok) throw new Error("Señal no encontrada");
 
-                    // Intenta buscar si está en el entorno compartido o local
-                    const localData = window.localStorage.getItem(`stream-${inputId}`);
-
-                    if (localData) {
-                        sdpEncriptado = localData;
-                    } else {
-                        // Si es de otro dispositivo, hacemos la consulta limpia
-                        const response = await fetch(`https://jsonblob.com/api/jsonBlob`);
-                        // En caso de que se requiera sincronización externa sin restricción:
-                        throw new Error("Buscando canal directo...");
-                    }
-
+                    const sdpEncriptado = await response.text();
                     const offer = JSON.parse(atob(sdpEncriptado));
 
-                    // Conexión de red nativa WebRTC
+                    // 2. Conexión de red nativa WebRTC
                     window.peerConnection = new RTCPeerConnection(rtcConfig);
 
                     window.peerConnection.ontrack = (event) => {
@@ -156,15 +147,10 @@
                     statusText.classList.add('online');
 
 
-
                 } catch (error) {
-                    console.log("Desviando a canal P2P directo debido a restricciones CORS de la IP.");
-                    // Forzar puenteo directo para saltar el bloqueo de Netlify
-                    statusText.innerText = "CONECTANDO P2P...";
-
-                    // Si estás probando en equipos conectados a la misma red (o datos móviles), 
-                    // el sistema intentará forzar el enlace directo de audio.
-                    alert("Para transmisiones en vivo en servidores estáticos como Netlify, si la API externa da CORS, asegúrate de que el emisor permanezca con la pestaña abierta.");
+                    console.error(error);
+                    statusText.innerText = "CÓDIGO INVÁLIDO";
+                    alert("No se encontró la transmisión o el código es incorrecto.");
                 }
             } else {
                 if (window.peerConnection) window.peerConnection.close();
