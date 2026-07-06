@@ -3,7 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="upgrade-insecure-requests"
+    />
     <title>Receptor de Audio Masivo</title>
     <style>
       /* Misma interfaz exacta */
@@ -84,8 +87,8 @@
 
       let isListening = false;
 
-      // ** REEMPLAZA ESTO **: La misma URL que usaste en el emisor (o la URL de reproducción que te dé tu servidor)
-      const STREAMING_SERVER_URL = "http://sapircast.caster.fm:14472";
+      // ** REEMPLAZA ESTO **: La URL de reproducción que te da Caster.fm en tu panel de control (terminada en /listen.mp3 u otro punto de montaje)
+      const STREAMING_SERVER_URL = "http://sapircast.caster.fm:14472/O48ny";
 
       function toggleListen() {
         if (!isListening) {
