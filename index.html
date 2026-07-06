@@ -37,7 +37,24 @@
       p {
         color: #888;
         font-size: 0.9rem;
+        margin-bottom: 20px;
+      }
+      .device-selector {
         margin-bottom: 30px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+      }
+      .device-selector select {
+        width: 100%;
+        padding: 10px;
+        border-radius: 8px;
+        background: #2a2a2a;
+        color: white;
+        border: 1px solid #444;
+        font-size: 0.9rem;
+        outline: none;
       }
       .stream-btn {
         width: 120px;
@@ -67,45 +84,162 @@
       .status.online {
         color: #00ffcc;
       }
+      .listener-count {
+        margin-top: 15px;
+        font-size: 0.85rem;
+        color: #aaa;
+        background: #222;
+        padding: 6px 15px;
+        border-radius: 15px;
+        display: inline-block;
+      }
+      .listener-count.full {
+        color: #ff3366;
+        font-weight: bold;
+        box-shadow: 0 0 10px rgba(255, 51, 102, 0.4);
+      }
     </style>
   </head>
   <body>
     <div class="container">
       <h1>EMISOR RADIO</h1>
       <p>Cualquier Micrófono, USB o Integrado</p>
+      
+      <div class="device-selector">
+        <label for="audioSource" style="font-size: 0.8rem; color: #888;">Micrófono / Entrada:</label>
+        <select id="audioSource">
+            <option value="default">Automático (Predeterminado)</option>
+        </select>
+      </div>
+
       <button id="streamButton" class="stream-btn">EN VIVO</button>
       <div id="statusText" class="status">APAGADO</div>
+      <div id="listenerCountBox" class="listener-count" style="display: none;">
+         Oyentes: <span id="count">0</span> / <span id="maxCount">40</span>
+      </div>
     </div>
 
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script>
       const streamButton = document.getElementById("streamButton");
       const statusText = document.getElementById("statusText");
+      const audioSourceSelect = document.getElementById("audioSource");
+      const listenerCountBox = document.getElementById("listenerCountBox");
+      const countSpan = document.getElementById("count");
+      const maxCountSpan = document.getElementById("maxCount");
 
       let isStreaming = false;
       let mediaStream = null;
       let peer = null;
       let connectedPeers = {};
+      let wakeLock = null;
 
-      // ID fijo de la emisora (Los receptores se conectarán a este ID)
+      // Configuraciones importantes
       const RADIO_ID = "stremapp-radio-emisor-principal";
+      const MAX_LISTENERS = 40; // Límite por ancho de banda y servidor público PeerJS
+      maxCountSpan.innerText = MAX_LISTENERS;
 
+      // --- WAKE LOCK API ---
+      // Evita que la pantalla se apague y el sistema detenga el micrófono por inactividad
+      async function requestWakeLock() {
+        try {
+          if ('wakeLock' in navigator) {
+            wakeLock = await navigator.wakeLock.request('screen');
+            console.log('Pantalla mantenida encendida (Wake Lock activado)');
+          }
+        } catch (err) {
+          console.error(`Error al solicitar Wake Lock: ${err.name}, ${err.message}`);
+        }
+      }
+
+      function releaseWakeLock() {
+        if (wakeLock !== null) {
+          wakeLock.release().then(() => {
+            wakeLock = null;
+            console.log('Wake Lock desactivado');
+          });
+        }
+      }
+
+      // Si el usuario cambia de pestaña y regresa, renovar Wake Lock
+      document.addEventListener('visibilitychange', () => {
+        if (wakeLock !== null && document.visibilityState === 'visible' && isStreaming) {
+          requestWakeLock();
+        }
+      });
+
+      // --- OBTENER DISPOSITIVOS ---
+      async function updateDeviceList() {
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const audioInputs = devices.filter(device => device.kind === 'audioinput');
+          
+          audioSourceSelect.innerHTML = '';
+          audioInputs.forEach(device => {
+            const option = document.createElement('option');
+            option.value = device.deviceId;
+            option.text = device.label || `Micrófono ${audioSourceSelect.length + 1}`;
+            audioSourceSelect.appendChild(option);
+          });
+          
+          if (audioInputs.length === 0) {
+            audioSourceSelect.innerHTML = '<option value="">Automático</option>';
+          }
+        } catch (e) {
+          console.error("Error al obtener dispositivos", e);
+        }
+      }
+
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+          updateDeviceList();
+          stream.getTracks().forEach(track => track.stop());
+        })
+        .catch(err => console.log("Permiso pendiente:", err));
+
+      navigator.mediaDevices.addEventListener('devicechange', updateDeviceList);
+
+      // --- ACTUALIZAR UI DE OYENTES ---
+      function updateListenerCount() {
+        const count = Object.keys(connectedPeers).length;
+        countSpan.innerText = count;
+        
+        if (count >= MAX_LISTENERS) {
+          listenerCountBox.classList.add('full');
+          statusText.innerText = "EN VIVO (SALA LLENA)";
+        } else if (count > 0) {
+          listenerCountBox.classList.remove('full');
+          statusText.innerText = "EN VIVO (OYENTES CONECTADOS)";
+        } else {
+          listenerCountBox.classList.remove('full');
+          statusText.innerText = "EN VIVO (ESPERANDO OYENTES)";
+        }
+      }
+
+      // --- TRANSMISIÓN ---
       async function toggleStream() {
         if (!isStreaming) {
           try {
             statusText.innerText = "INICIANDO...";
             
-            // 1. Captura del micrófono
+            const audioConstraints = {
+              echoCancellation: { ideal: false },
+              noiseSuppression: { ideal: false },
+              autoGainControl: { ideal: false }
+            };
+
+            if (audioSourceSelect.value && audioSourceSelect.value !== "default") {
+              audioConstraints.deviceId = { exact: audioSourceSelect.value };
+            }
+
             mediaStream = await navigator.mediaDevices.getUserMedia({
-              audio: {
-                echoCancellation: false,
-                noiseSuppression: false,
-                autoGainControl: false,
-              },
+              audio: audioConstraints,
               video: false,
             });
 
-            // 2. Iniciar el servidor P2P en el navegador con un ID fijo
+            // Mantener la pantalla encendida para evitar desconexiones prolongadas
+            await requestWakeLock();
+
             peer = new Peer(RADIO_ID);
 
             peer.on('open', (id) => {
@@ -114,20 +248,36 @@
               streamButton.innerText = "DETENER";
               statusText.innerText = "EN VIVO (ESPERANDO OYENTES)";
               statusText.classList.add("online");
+              audioSourceSelect.disabled = true;
+              
+              listenerCountBox.style.display = "inline-block";
+              updateListenerCount();
             });
 
-            // 3. Escuchar conexiones de los oyentes
             peer.on('connection', (conn) => {
               conn.on('open', () => {
-                statusText.innerText = "EN VIVO (OYENTES CONECTADOS)";
-                // Enviar el flujo de audio al oyente que se conectó
+                // Verificar límite de oyentes
+                if (Object.keys(connectedPeers).length >= MAX_LISTENERS) {
+                   console.log("Rechazando conexión de oyente: límite alcanzado.");
+                   setTimeout(() => conn.close(), 500);
+                   return;
+                }
+
+                // Enviar llamada
                 const call = peer.call(conn.peer, mediaStream);
                 connectedPeers[conn.peer] = call;
+                updateListenerCount();
                 
                 call.on('close', () => {
                   delete connectedPeers[conn.peer];
-                  if (Object.keys(connectedPeers).length === 0) {
-                     statusText.innerText = "EN VIVO (ESPERANDO OYENTES)";
+                  updateListenerCount();
+                });
+                
+                conn.on('close', () => {
+                  if (connectedPeers[conn.peer]) {
+                      connectedPeers[conn.peer].close();
+                      delete connectedPeers[conn.peer];
+                      updateListenerCount();
                   }
                 });
               });
@@ -147,18 +297,21 @@
             statusText.innerText = "APAGADO";
           }
         } else {
-          // Detener la transmisión
           isStreaming = false;
           streamButton.classList.remove("streaming");
           streamButton.innerText = "EN VIVO";
           statusText.innerText = "APAGADO";
           statusText.classList.remove("online");
+          audioSourceSelect.disabled = false;
+          listenerCountBox.style.display = "none";
 
-          // Cortar todas las llamadas activas a los oyentes
+          releaseWakeLock();
+
           for (let peerId in connectedPeers) {
             if (connectedPeers[peerId]) connectedPeers[peerId].close();
           }
           connectedPeers = {};
+          updateListenerCount();
 
           if (peer) {
             peer.destroy();
