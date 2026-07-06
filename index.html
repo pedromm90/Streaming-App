@@ -77,71 +77,97 @@
       <div id="statusText" class="status">APAGADO</div>
     </div>
 
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script>
       const streamButton = document.getElementById("streamButton");
       const statusText = document.getElementById("statusText");
 
       let isStreaming = false;
-      window.mediaStream = null;
-      window.mediaRecorder = null;
+      let mediaStream = null;
+      let peer = null;
+      let connectedPeers = {};
 
-      // ** REEMPLAZA ESTO **: Tu URL de servidor de streaming (Icecast/Shoutcast/Relaypoint)
-      const STREAMING_SERVER_URL = "http://sapircast.caster.fm:14472/O48ny";
+      // ID fijo de la emisora (Los receptores se conectarán a este ID)
+      const RADIO_ID = "stremapp-radio-emisor-principal";
 
       async function toggleStream() {
         if (!isStreaming) {
           try {
-            // Captura universal: funciona en Laptops, All-in-One, USB y Jack
-            window.mediaStream = await navigator.mediaDevices.getUserMedia({
+            statusText.innerText = "INICIANDO...";
+            
+            // 1. Captura del micrófono
+            mediaStream = await navigator.mediaDevices.getUserMedia({
               audio: {
-                echoCancellation: false, // Fiel al sonido original
+                echoCancellation: false,
                 noiseSuppression: false,
                 autoGainControl: false,
               },
               video: false,
             });
 
-            // Graba el audio en ráfagas de tiempo real en formato nativo WebM/Ogg de audio
-            window.mediaRecorder = new MediaRecorder(window.mediaStream, {
-              mimeType: "audio/webm;codecs=opus",
+            // 2. Iniciar el servidor P2P en el navegador con un ID fijo
+            peer = new Peer(RADIO_ID);
+
+            peer.on('open', (id) => {
+              isStreaming = true;
+              streamButton.classList.add("streaming");
+              streamButton.innerText = "DETENER";
+              statusText.innerText = "EN VIVO (ESPERANDO OYENTES)";
+              statusText.classList.add("online");
             });
 
-            // Cada vez que haya datos de audio disponibles (cada 1 segundo), los envía al servidor
-            window.mediaRecorder.ondataavailable = async (event) => {
-              if (event.data.size > 0 && isStreaming) {
-                // Envío nativo continuo mediante HTTP POST sin librerías
-                fetch(STREAMING_SERVER_URL, {
-                  method: "POST",
-                  body: event.data,
-                  cache: "no-store",
-                }).catch((e) =>
-                  console.log("Transmitiendo paquete de audio..."),
-                );
+            // 3. Escuchar conexiones de los oyentes
+            peer.on('connection', (conn) => {
+              conn.on('open', () => {
+                statusText.innerText = "EN VIVO (OYENTES CONECTADOS)";
+                // Enviar el flujo de audio al oyente que se conectó
+                const call = peer.call(conn.peer, mediaStream);
+                connectedPeers[conn.peer] = call;
+                
+                call.on('close', () => {
+                  delete connectedPeers[conn.peer];
+                  if (Object.keys(connectedPeers).length === 0) {
+                     statusText.innerText = "EN VIVO (ESPERANDO OYENTES)";
+                  }
+                });
+              });
+            });
+            
+            peer.on('error', (err) => {
+              console.error(err);
+              if (err.type === 'unavailable-id') {
+                 alert("Ya hay una transmisión activa. Detenla primero o cierra otras pestañas.");
+                 if (isStreaming) toggleStream();
               }
-            };
+            });
 
-            // Inicia la grabación y fragmenta el audio cada 1000 milisegundos (1 segundo)
-            window.mediaRecorder.start(1000);
-
-            isStreaming = true;
-            streamButton.classList.add("streaming");
-            streamButton.innerText = "DETENER";
-            statusText.innerText = "TRANSMITIENDO AL SERVIDOR";
-            statusText.classList.add("online");
           } catch (error) {
             console.error(error);
             alert("Asegúrate de dar permisos al micrófono de tu equipo.");
+            statusText.innerText = "APAGADO";
           }
         } else {
-          if (window.mediaRecorder) window.mediaRecorder.stop();
-          if (window.mediaStream)
-            window.mediaStream.getTracks().forEach((track) => track.stop());
-
+          // Detener la transmisión
           isStreaming = false;
           streamButton.classList.remove("streaming");
           streamButton.innerText = "EN VIVO";
           statusText.innerText = "APAGADO";
           statusText.classList.remove("online");
+
+          // Cortar todas las llamadas activas a los oyentes
+          for (let peerId in connectedPeers) {
+            if (connectedPeers[peerId]) connectedPeers[peerId].close();
+          }
+          connectedPeers = {};
+
+          if (peer) {
+            peer.destroy();
+            peer = null;
+          }
+          if (mediaStream) {
+            mediaStream.getTracks().forEach((track) => track.stop());
+            mediaStream = null;
+          }
         }
       }
 

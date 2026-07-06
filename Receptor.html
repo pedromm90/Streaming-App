@@ -80,37 +80,76 @@
 
     <audio id="audioPlayer" preload="none"></audio>
 
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script>
       const listenButton = document.getElementById("listenButton");
       const statusText = document.getElementById("statusText");
       const audioPlayer = document.getElementById("audioPlayer");
 
       let isListening = false;
+      let peer = null;
+      let currentCall = null;
 
-      // ** REEMPLAZA ESTO **: La URL de reproducción que te da Caster.fm en tu panel de control (terminada en /listen.mp3 u otro punto de montaje)
-      const STREAMING_SERVER_URL = "http://sapircast.caster.fm:14472/O48ny";
+      // ID fijo de la emisora
+      const RADIO_ID = "stremapp-radio-emisor-principal";
 
       function toggleListen() {
         if (!isListening) {
-          // Conectar al flujo de audio de forma nativa e ilimitada
-          audioPlayer.src = STREAMING_SERVER_URL;
-          audioPlayer
-            .play()
-            .then(() => {
-              isListening = true;
-              listenButton.classList.add("listening");
-              listenButton.innerText = "SILENCIAR";
-              statusText.innerText = "EN VIVO";
-              statusText.classList.add("online");
-            })
-            .catch((error) => {
-              console.error("Error al reproducir el flujo:", error);
-              alert("La señal no está activa o el servidor no responde.");
+          statusText.innerText = "CONECTANDO...";
+          
+          // Crear cliente P2P
+          peer = new Peer();
+
+          peer.on('open', (id) => {
+             // Conectar con la emisora para avisar que estamos aquí
+             const conn = peer.connect(RADIO_ID);
+             
+             conn.on('open', () => {
+                 statusText.innerText = "ESPERANDO TRANSMISIÓN...";
+             });
+          });
+
+          // Cuando la emisora nos envía el audio
+          peer.on('call', (call) => {
+            currentCall = call;
+            call.answer(); // Aceptar llamada sin enviar audio (solo recepción)
+            
+            call.on('stream', (remoteStream) => {
+              audioPlayer.srcObject = remoteStream;
+              audioPlayer.play().then(() => {
+                isListening = true;
+                listenButton.classList.add("listening");
+                listenButton.innerText = "SILENCIAR";
+                statusText.innerText = "EN VIVO";
+                statusText.classList.add("online");
+              }).catch((e) => {
+                console.error("Error reproduciendo:", e);
+              });
             });
+
+            call.on('close', () => {
+                // Si la emisora corta la transmisión
+                if (isListening) toggleListen();
+                alert("La transmisión ha finalizado.");
+            });
+          });
+
+          peer.on('error', (err) => {
+             console.error(err);
+             if (err.type === 'peer-unavailable') {
+                 alert("La emisora está apagada en este momento.");
+                 statusText.innerText = "DESCONECTADO";
+                 if (peer) { peer.destroy(); peer = null; }
+             }
+          });
+
         } else {
-          // Detener por completo la descarga de datos para ahorrar datos/batería
+          // Detener por completo la recepción
+          if (currentCall) currentCall.close();
+          if (peer) { peer.destroy(); peer = null; }
+          
           audioPlayer.pause();
-          audioPlayer.src = "";
+          audioPlayer.srcObject = null;
 
           isListening = false;
           listenButton.classList.remove("listening");
