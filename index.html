@@ -1,207 +1,251 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Emisor de Audio - Código Corto</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Universal Audio Streamer - Emisor con ID</title>
     <style>
-        body {
-            margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background-color: #0d0d0d;
-            color: #ffffff;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
+      body {
+        margin: 0;
+        padding: 0;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background-color: #0d0d0d;
+        color: #ffffff;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+      }
 
-        .container {
-            text-align: center;
-            padding: 40px;
-            border-radius: 20px;
-            background: #1a1a1a;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-            max-width: 320px;
-            width: 100%;
-        }
+      .container {
+        text-align: center;
+        padding: 40px;
+        border-radius: 20px;
+        background: #1a1a1a;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        max-width: 320px;
+        width: 100%;
+      }
 
-        h1 {
-            font-size: 1.5rem;
-            font-weight: 400;
-            margin-bottom: 10px;
-        }
+      h1 {
+        font-size: 1.5rem;
+        margin-bottom: 10px;
+        font-weight: 400;
+        letter-spacing: 1px;
+      }
 
-        p {
-            color: #888;
-            font-size: 0.9rem;
-            margin-bottom: 30px;
-        }
+      p {
+        color: #888;
+        font-size: 0.9rem;
+        margin-bottom: 30px;
+      }
 
-        .stream-btn {
-            width: 120px;
-            height: 120px;
-            border-radius: 50%;
-            border: none;
-            background: linear-gradient(145deg, #ff3366, #dd2255);
-            color: white;
-            font-size: 1rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 0 20px rgba(255, 51, 102, 0.4);
-            margin-bottom: 25px;
-        }
+      .stream-btn {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        border: none;
+        background: linear-gradient(145deg, #ff3366, #dd2255);
+        color: white;
+        font-size: 1rem;
+        font-weight: bold;
+        cursor: pointer;
+        outline: none;
+        transition: all 0.3s ease;
+        box-shadow: 0 0 20px rgba(255, 51, 102, 0.4);
+        margin-bottom: 25px;
+      }
 
-        .stream-btn.streaming {
-            background: linear-gradient(145deg, #00ffcc, #00aa88);
-            box-shadow: 0 0 30px rgba(0, 255, 204, 0.6);
-            color: #0d0d0d;
-        }
+      .stream-btn:active {
+        transform: scale(0.95);
+      }
 
-        .id-box {
-            display: none;
-            background: #252525;
-            padding: 12px;
-            border-radius: 8px;
-            border: 1px solid #333;
-            font-size: 1.2rem;
-            color: #00ffcc;
-            font-weight: bold;
-            letter-spacing: 3px;
-            cursor: pointer;
-            margin-top: 10px;
-        }
+      .stream-btn.streaming {
+        background: linear-gradient(145deg, #00ffcc, #00aa88);
+        box-shadow: 0 0 30px rgba(0, 255, 204, 0.6);
+        color: #0d0d0d;
+      }
 
-        .status {
-            margin-top: 25px;
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            color: #ff3366;
-        }
+      /* Cuadro de texto para el ID generado */
+      .id-container {
+        display: none; /* Oculto hasta que inicie la transmisión */
+        margin-top: 15px;
+      }
 
-        .status.online {
-            color: #00ffcc;
-        }
+      .id-input {
+        width: 80%;
+        padding: 10px;
+        background: #252525;
+        border: 1px solid #333;
+        border-radius: 8px;
+        color: #00ffcc;
+        text-align: center;
+        font-size: 0.85rem;
+        outline: none;
+        cursor: pointer;
+      }
+
+      .status {
+        margin-top: 25px;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        color: #ff3366;
+      }
+
+      .status.online {
+        color: #00ffcc;
+      }
     </style>
-</head>
-
-<body>
-
+  </head>
+  <body>
     <div class="container">
-        <h1>EMISOR RADIO</h1>
-        <p>Cualquier micrófono / interfaz USB</p>
+      <h1>AUDIO STREAMER</h1>
+      <p>Transmisión Ininterrumpida USB / Jack</p>
 
-        <button id="streamButton" class="stream-btn">EN VIVO</button>
+      <button id="streamButton" class="stream-btn">EN VIVO</button>
 
-        <div id="idBox" class="id-box">00000</div>
+      <div id="idContainer" class="id-container">
+        <p style="margin-bottom: 8px; font-size: 0.75rem">
+          ID de Transmisión (Click para copiar):
+        </p>
+        <input type="text" id="generatedId" class="id-input" readonly />
+      </div>
 
-        <div id="statusText" class="status">APAGADO</div>
+      <div id="statusText" class="status">APAGADO</div>
     </div>
 
     <script>
-        const streamButton = document.getElementById('streamButton');
-        const statusText = document.getElementById('statusText');
-        const idBox = document.getElementById('idBox');
+      const streamButton = document.getElementById("streamButton");
+      const statusText = document.getElementById("statusText");
+      const idContainer = document.getElementById("idContainer");
+      const generatedIdInput = document.getElementById("generatedId");
 
-        let isStreaming = false;
-        window.audioContext = null;
-        window.mediaStream = null;
-        window.peerConnection = null;
+      let isStreaming = false;
 
-        const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+      // Variables de persistencia ancladas al objeto global Window
+      window.audioContext = null;
+      window.mediaStream = null;
+      window.audioSource = null;
+      window.gainNode = null;
+      window.peerConnection = null;
 
-        // Generar un ID numérico corto aleatorio de 5 dígitos
-        const shortId = Math.floor(10000 + Math.random() * 90000).toString();
+      // Servidor STUN nativo y gratuito de Google para enlazar las conexiones
+      const rtcConfig = {
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+      };
 
-        async function toggleStream() {
-            if (!isStreaming) {
-                try {
-                    statusText.innerText = "INICIANDO HARDWARE...";
+      async function toggleStream() {
+        if (!isStreaming) {
+          try {
+            // 1. Captura de audio de hardware (Mesa de mezclas / USB / Micrófonos)
+            window.mediaStream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false,
+                latency: 0,
+              },
+              video: false,
+            });
 
-                    // Captura universal para cualquier micrófono o laptop All-in-One
-                    window.mediaStream = await navigator.mediaDevices.getUserMedia({
-                        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-                        video: false
-                    });
+            // 2. Configurar el motor de audio y el retorno local continuo
+            window.audioContext = new (
+              window.AudioContext || window.webkitAudioContext
+            )({
+              latencyHint: "interactive",
+              sampleRate: 44100,
+            });
 
-                    // Retorno de audio local continuo
-                    window.audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
-                    const source = window.audioContext.createMediaStreamSource(window.mediaStream);
-                    source.connect(window.audioContext.destination);
+            window.audioSource = window.audioContext.createMediaStreamSource(
+              window.mediaStream,
+            );
+            window.gainNode = window.audioContext.createGain();
+            window.gainNode.gain.setValueAtTime(
+              1.0,
+              window.audioContext.currentTime,
+            );
 
-                    // Configurar WebRTC nativo
-                    window.peerConnection = new RTCPeerConnection(rtcConfig);
-                    window.mediaStream.getTracks().forEach(track => window.peerConnection.addTrack(track, window.mediaStream));
+            window.audioSource.connect(window.gainNode);
+            window.gainNode.connect(window.audioContext.destination);
 
-                    const offer = await window.peerConnection.createOffer();
-                    await window.peerConnection.setLocalDescription(offer);
+            // 3. Inicializar la tecnología WebRTC para crear el ID de Radio Emisora
+            window.peerConnection = new RTCPeerConnection(rtcConfig);
 
-                    window.peerConnection.onicecandidate = async (event) => {
-                        if (event.candidate === null) {
-                            // Encriptamos los datos en Base64 para enviarlo como texto plano limpio
-                            const sdpEncriptado = btoa(JSON.stringify(window.peerConnection.localDescription));
+            // Añadir los canales de audio de la interfaz USB al flujo de red
+            window.mediaStream.getTracks().forEach((track) => {
+              window.peerConnection.addTrack(track, window.mediaStream);
+            });
 
-                            statusText.innerText = "PUBLICANDO SEÑAL...";
+            // Generar la Oferta SDP (Los datos técnicos que componen tu ID único de señal)
+            const offer = await window.peerConnection.createOffer();
+            await window.peerConnection.setLocalDescription(offer);
 
-                            try {
-                                // Enviamos los datos como texto plano (text/plain) usando un cubo público en kvdb.io.
-                                // Al usar texto plano, el navegador NO realiza la petición "Preflight" y salta el error CORS por completo.
-                                const response = await fetch(`https://kvdb.io/MNY7gYm67v8uVp4A8Yn6R2/stream-${shortId}`, {
-                                    method: 'POST',
-                                    body: sdpEncriptado
-                                });
+            // Esperar un breve instante a que se empaqueten los candidatos ICE nativos
+            window.peerConnection.onicecandidate = (event) => {
+              if (event.candidate === null) {
+                // Cuando el paquete está completo, lo encriptamos en Base64 para crear un ID limpio
+                const b64Id = btoa(
+                  JSON.stringify(window.peerConnection.localDescription),
+                );
+                generatedIdInput.value = b64Id;
+                idContainer.style.display = "block";
+              }
+            };
 
-                                if (!response.ok) throw new Error();
-
-                                // Mostrar el ID corto en pantalla
-                                idBox.innerText = shortId;
-                                idBox.style.display = 'block';
-                                statusText.innerText = "TRANSMITIENDO EN VIVO";
-                                statusText.classList.add('online');
-
-                            } catch (err) {
-                                console.error("Error en servidor:", err);
-                                idBox.innerText = shortId;
-                                idBox.style.display = 'block';
-                                statusText.innerText = "ERROR DE RED EXTERNA";
-                            }
-                        }
-                    };
-
-                    isStreaming = true;
-                    streamButton.classList.add('streaming');
-                    streamButton.innerText = "DETENER";
-
-                } catch (error) {
-                    console.error(error);
-                    alert("Error de hardware. Verifica los permisos de tu micrófono.");
-                    statusText.innerText = "APAGADO";
-                }
-            } else {
-                if (window.audioContext) window.audioContext.close();
-                if (window.mediaStream) window.mediaStream.getTracks().forEach(track => track.stop());
-                if (window.peerConnection) window.peerConnection.close();
-
-                isStreaming = false;
-                idBox.style.display = 'none';
-                streamButton.classList.remove('streaming');
-                streamButton.innerText = "EN VIVO";
-                statusText.innerText = "APAGADO";
-                statusText.classList.remove('online');
+            if (window.audioContext.state === "suspended") {
+              await window.audioContext.resume();
             }
+
+            // Cambios estéticos
+            isStreaming = true;
+            streamButton.classList.add("streaming");
+            streamButton.innerText = "DETENER";
+            statusText.innerText = "TRANSMISIÓN CONTINUA ACTIVA";
+            statusText.classList.add("online");
+          } catch (error) {
+            console.error("Error en el hardware o red de audio:", error);
+            alert("Error al conectar con la consola/interfaz de sonido.");
+          }
+        } else {
+          // Apagado y destrucción total de canales
+          if (window.audioContext) window.audioContext.close();
+          if (window.mediaStream)
+            window.mediaStream.getTracks().forEach((track) => track.stop());
+          if (window.peerConnection) window.peerConnection.close();
+
+          isStreaming = false;
+          idContainer.style.display = "none";
+          generatedIdInput.value = "";
+          streamButton.classList.remove("streaming");
+          streamButton.innerText = "EN VIVO";
+          statusText.innerText = "APAGADO";
+          statusText.classList.remove("online");
         }
+      }
 
-        // Copiar ID corto al hacer clic
-        idBox.addEventListener('click', () => {
-            navigator.clipboard.writeText(idBox.innerText);
-            alert("¡Código de radio copiado!");
-        });
+      // Función nativa para hacer click en el ID y que se copie automáticamente al portapapeles
+      generatedIdInput.addEventListener("click", () => {
+        generatedIdInput.select();
+        document.execCommand("copy");
+        alert(
+          "¡ID de transmisión copiado al portapapeles! Envíalo a tus oyentes.",
+        );
+      });
 
-        streamButton.addEventListener('click', toggleStream);
+      // Hilo protector para evitar suspensiones por ahorro de energía
+      setInterval(() => {
+        if (
+          isStreaming &&
+          window.audioContext &&
+          window.audioContext.state === "suspended"
+        ) {
+          window.audioContext.resume();
+        }
+      }, 2000);
+
+      streamButton.addEventListener("click", toggleStream);
     </script>
-</body>
-
+  </body>
 </html>
