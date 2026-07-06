@@ -3,12 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Universal Audio Receiver - Continuo</title>
+    <title>Receptor de Audio Masivo</title>
     <style>
-      /* Misma interfaz minimalista y oscura */
+      /* Misma interfaz exacta */
       body {
         margin: 0;
-        padding: 0;
         font-family:
           -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         background-color: #0d0d0d;
@@ -18,7 +17,6 @@
         align-items: center;
         height: 100vh;
       }
-
       .container {
         text-align: center;
         padding: 40px;
@@ -28,70 +26,34 @@
         max-width: 320px;
         width: 100%;
       }
-
       h1 {
         font-size: 1.5rem;
-        margin-bottom: 10px;
         font-weight: 400;
-        letter-spacing: 1px;
+        margin-bottom: 10px;
       }
-
       p {
         color: #888;
         font-size: 0.9rem;
-        margin-bottom: 25px;
+        margin-bottom: 30px;
       }
-
-      /* Input minimalista para el código de la transmisión */
-      .stream-input {
-        width: 80%;
-        padding: 10px;
-        margin-bottom: 25px;
-        background: #252525;
-        border: 1px solid #333;
-        border-radius: 8px;
-        color: white;
-        text-align: center;
-        font-size: 1rem;
-        outline: none;
-      }
-
-      .stream-input:focus {
-        border-color: #00ffcc;
-      }
-
-      /* Botón de Escucha */
       .listen-btn {
         width: 120px;
         height: 120px;
         border-radius: 50%;
         border: none;
-        background: linear-gradient(145deg, #333333, #222222);
-        color: #888;
+        background: linear-gradient(145deg, #0077ff, #0055cc);
+        color: white;
         font-size: 1rem;
         font-weight: bold;
         cursor: pointer;
-        outline: none;
         transition: all 0.3s ease;
-        box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
-      }
-
-      .listen-btn.ready {
-        background: linear-gradient(145deg, #0077ff, #0055cc);
-        color: white;
         box-shadow: 0 0 20px rgba(0, 119, 255, 0.4);
       }
-
       .listen-btn.listening {
         background: linear-gradient(145deg, #00ffcc, #00aa88);
         box-shadow: 0 0 30px rgba(0, 255, 204, 0.6);
         color: #0d0d0d;
       }
-
-      .listen-btn:active {
-        transform: scale(0.95);
-      }
-
       .status {
         margin-top: 25px;
         font-size: 0.85rem;
@@ -99,7 +61,6 @@
         letter-spacing: 2px;
         color: #888;
       }
-
       .status.online {
         color: #00ffcc;
       }
@@ -107,129 +68,53 @@
   </head>
   <body>
     <div class="container">
-      <h1>AUDIO RECEIVER</h1>
-      <p>Sintonizador de Radio Digital</p>
-
-      <input
-        type="text"
-        id="streamIdInput"
-        class="stream-input"
-        placeholder="Introduce ID de señal..."
-      />
-
-      <button id="listenButton" class="listen-btn">CONECTAR</button>
-
+      <h1>RECEPTOR RADIO</h1>
+      <p>Sintonizar Audio en Tiempo Real</p>
+      <button id="listenButton" class="listen-btn">ESCUCHAR</button>
       <div id="statusText" class="status">DESCONECTADO</div>
     </div>
 
-    <audio id="remoteAudio" autoplay style="display: none"></audio>
+    <audio id="audioPlayer" preload="none"></audio>
 
     <script>
       const listenButton = document.getElementById("listenButton");
       const statusText = document.getElementById("statusText");
-      const streamIdInput = document.getElementById("streamIdInput");
-      const remoteAudio = document.getElementById("remoteAudio");
+      const audioPlayer = document.getElementById("audioPlayer");
 
       let isListening = false;
 
-      // Variables globales en el objeto Window para evitar cortes por recolección de basura
-      window.peerConnection = null;
-      window.audioContext = null;
+      // ** REEMPLAZA ESTO **: La misma URL que usaste en el emisor (o la URL de reproducción que te dé tu servidor)
+      const STREAMING_SERVER_URL = "http://sapircast.caster.fm:14472";
 
-      // Configuración de servidores STUN públicos de Google (Gratuitos y nativos)
-      // Permiten conectar ambos dispositivos aunque estén en redes móviles o routers distintos
-      const rtcConfig = {
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-      };
-
-      // Cambiar el estilo del botón si hay texto en el input
-      streamIdInput.addEventListener("input", () => {
-        if (streamIdInput.value.trim() !== "") {
-          listenButton.classList.add("ready");
-        } else {
-          listenButton.classList.remove("ready");
-        }
-      });
-
-      async function toggleListen() {
-        const streamId = streamIdInput.value.trim();
-        if (!streamId) {
-          alert("Por favor, introduce un ID de transmisión válido.");
-          return;
-        }
-
+      function toggleListen() {
         if (!isListening) {
-          try {
-            statusText.innerText = "CONECTANDO...";
-
-            // 1. Inicializar la conexión WebRTC nativa
-            window.peerConnection = new RTCPeerConnection(rtcConfig);
-
-            // 2. Escuchar cuando llegue el canal de audio del emisor
-            window.peerConnection.ontrack = (event) => {
-              if (event.streams && event.streams[0]) {
-                // Asignar el flujo de audio directamente al elemento <audio> nativo
-                remoteAudio.srcObject = event.streams[0];
-
-                // Asegurar la inicialización del AudioContext en el receptor para evitar restricciones de reproducción del navegador
-                window.audioContext = new (
-                  window.AudioContext || window.webkitAudioContext
-                )();
-                if (window.audioContext.state === "suspended") {
-                  window.audioContext.resume();
-                }
-              }
-            };
-
-            // PROCESO DE CONEXIÓN NATIVO (Simulación de negociación SDP manual sin servidores de señalización)
-            // En un entorno de producción sin librerías, aquí se decodifica el "código/ID" generado por el emisor
-            const offer = JSON.parse(atob(streamId));
-            await window.peerConnection.setRemoteDescription(
-              new RTCSessionDescription(offer),
-            );
-
-            const answer = await window.peerConnection.createAnswer();
-            await window.peerConnection.setLocalDescription(answer);
-
-            // Alerta técnica: En conexiones puras sin librerías, el receptor genera una respuesta que idealmente se devuelve al emisor.
-            // Para que sea instantáneo tipo radio, este script se sincroniza directamente con el reloj del flujo remoto.
-
-            // Interfaz
-            isListening = true;
-            listenButton.classList.remove("ready");
-            listenButton.classList.add("listening");
-            listenButton.innerText = "MUTEAR";
-            statusText.innerText = "ESCUCHANDO EN VIVO";
-            statusText.classList.add("online");
-          } catch (error) {
-            console.error("Error al conectar con la señal:", error);
-            statusText.innerText = "ERROR DE SEÑAL";
-            alert("El código de transmisión no es válido o ha expirado.");
-          }
+          // Conectar al flujo de audio de forma nativa e ilimitada
+          audioPlayer.src = STREAMING_SERVER_URL;
+          audioPlayer
+            .play()
+            .then(() => {
+              isListening = true;
+              listenButton.classList.add("listening");
+              listenButton.innerText = "SILENCIAR";
+              statusText.innerText = "EN VIVO";
+              statusText.classList.add("online");
+            })
+            .catch((error) => {
+              console.error("Error al reproducir el flujo:", error);
+              alert("La señal no está activa o el servidor no responde.");
+            });
         } else {
-          // Desconexión limpia
-          if (window.peerConnection) {
-            window.peerConnection.close();
-          }
-          remoteAudio.srcObject = null;
+          // Detener por completo la descarga de datos para ahorrar datos/batería
+          audioPlayer.pause();
+          audioPlayer.src = "";
 
           isListening = false;
           listenButton.classList.remove("listening");
-          listenButton.classList.add("ready");
-          listenButton.innerText = "CONECTAR";
+          listenButton.innerText = "ESCUCHAR";
           statusText.innerText = "DESCONECTADO";
           statusText.classList.remove("online");
         }
       }
-
-      // Mantener el flujo despierto si el móvil apaga la pantalla (Vigilante continuo)
-      setInterval(() => {
-        if (isListening && remoteAudio.paused && remoteAudio.srcObject) {
-          remoteAudio
-            .play()
-            .catch((e) => console.log("Esperando interacción para reanudar."));
-        }
-      }, 2000);
 
       listenButton.addEventListener("click", toggleListen);
     </script>

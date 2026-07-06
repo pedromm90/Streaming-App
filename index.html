@@ -3,11 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Universal Audio Streamer - Emisor con ID</title>
+    <title>Emisor de Audio Universal</title>
     <style>
       body {
         margin: 0;
-        padding: 0;
         font-family:
           -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         background-color: #0d0d0d;
@@ -17,7 +16,6 @@
         align-items: center;
         height: 100vh;
       }
-
       .container {
         text-align: center;
         padding: 40px;
@@ -27,20 +25,16 @@
         max-width: 320px;
         width: 100%;
       }
-
       h1 {
         font-size: 1.5rem;
-        margin-bottom: 10px;
         font-weight: 400;
-        letter-spacing: 1px;
+        margin-bottom: 10px;
       }
-
       p {
         color: #888;
         font-size: 0.9rem;
         margin-bottom: 30px;
       }
-
       .stream-btn {
         width: 120px;
         height: 120px;
@@ -51,41 +45,14 @@
         font-size: 1rem;
         font-weight: bold;
         cursor: pointer;
-        outline: none;
         transition: all 0.3s ease;
         box-shadow: 0 0 20px rgba(255, 51, 102, 0.4);
-        margin-bottom: 25px;
       }
-
-      .stream-btn:active {
-        transform: scale(0.95);
-      }
-
       .stream-btn.streaming {
         background: linear-gradient(145deg, #00ffcc, #00aa88);
         box-shadow: 0 0 30px rgba(0, 255, 204, 0.6);
         color: #0d0d0d;
       }
-
-      /* Cuadro de texto para el ID generado */
-      .id-container {
-        display: none; /* Oculto hasta que inicie la transmisión */
-        margin-top: 15px;
-      }
-
-      .id-input {
-        width: 80%;
-        padding: 10px;
-        background: #252525;
-        border: 1px solid #333;
-        border-radius: 8px;
-        color: #00ffcc;
-        text-align: center;
-        font-size: 0.85rem;
-        outline: none;
-        cursor: pointer;
-      }
-
       .status {
         margin-top: 25px;
         font-size: 0.85rem;
@@ -93,7 +60,6 @@
         letter-spacing: 2px;
         color: #ff3366;
       }
-
       .status.online {
         color: #00ffcc;
       }
@@ -101,149 +67,79 @@
   </head>
   <body>
     <div class="container">
-      <h1>AUDIO STREAMER</h1>
-      <p>Transmisión Ininterrumpida USB / Jack</p>
-
+      <h1>EMISOR RADIO</h1>
+      <p>Cualquier Micrófono, USB o Integrado</p>
       <button id="streamButton" class="stream-btn">EN VIVO</button>
-
-      <div id="idContainer" class="id-container">
-        <p style="margin-bottom: 8px; font-size: 0.75rem">
-          ID de Transmisión (Click para copiar):
-        </p>
-        <input type="text" id="generatedId" class="id-input" readonly />
-      </div>
-
       <div id="statusText" class="status">APAGADO</div>
     </div>
 
     <script>
       const streamButton = document.getElementById("streamButton");
       const statusText = document.getElementById("statusText");
-      const idContainer = document.getElementById("idContainer");
-      const generatedIdInput = document.getElementById("generatedId");
 
       let isStreaming = false;
-
-      // Variables de persistencia ancladas al objeto global Window
-      window.audioContext = null;
       window.mediaStream = null;
-      window.audioSource = null;
-      window.gainNode = null;
-      window.peerConnection = null;
+      window.mediaRecorder = null;
 
-      // Servidor STUN nativo y gratuito de Google para enlazar las conexiones
-      const rtcConfig = {
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-      };
+      // ** REEMPLAZA ESTO **: Tu URL de servidor de streaming (Icecast/Shoutcast/Relaypoint)
+      const STREAMING_SERVER_URL = "https://tu-servidor-streaming.com/radio";
 
       async function toggleStream() {
         if (!isStreaming) {
           try {
-            // 1. Captura de audio de hardware (Mesa de mezclas / USB / Micrófonos)
+            // Captura universal: funciona en Laptops, All-in-One, USB y Jack
             window.mediaStream = await navigator.mediaDevices.getUserMedia({
               audio: {
-                echoCancellation: false,
+                echoCancellation: false, // Fiel al sonido original
                 noiseSuppression: false,
                 autoGainControl: false,
-                latency: 0,
               },
               video: false,
             });
 
-            // 2. Configurar el motor de audio y el retorno local continuo
-            window.audioContext = new (
-              window.AudioContext || window.webkitAudioContext
-            )({
-              latencyHint: "interactive",
-              sampleRate: 44100,
+            // Graba el audio en ráfagas de tiempo real en formato nativo WebM/Ogg de audio
+            window.mediaRecorder = new MediaRecorder(window.mediaStream, {
+              mimeType: "audio/webm;codecs=opus",
             });
 
-            window.audioSource = window.audioContext.createMediaStreamSource(
-              window.mediaStream,
-            );
-            window.gainNode = window.audioContext.createGain();
-            window.gainNode.gain.setValueAtTime(
-              1.0,
-              window.audioContext.currentTime,
-            );
-
-            window.audioSource.connect(window.gainNode);
-            window.gainNode.connect(window.audioContext.destination);
-
-            // 3. Inicializar la tecnología WebRTC para crear el ID de Radio Emisora
-            window.peerConnection = new RTCPeerConnection(rtcConfig);
-
-            // Añadir los canales de audio de la interfaz USB al flujo de red
-            window.mediaStream.getTracks().forEach((track) => {
-              window.peerConnection.addTrack(track, window.mediaStream);
-            });
-
-            // Generar la Oferta SDP (Los datos técnicos que componen tu ID único de señal)
-            const offer = await window.peerConnection.createOffer();
-            await window.peerConnection.setLocalDescription(offer);
-
-            // Esperar un breve instante a que se empaqueten los candidatos ICE nativos
-            window.peerConnection.onicecandidate = (event) => {
-              if (event.candidate === null) {
-                // Cuando el paquete está completo, lo encriptamos en Base64 para crear un ID limpio
-                const b64Id = btoa(
-                  JSON.stringify(window.peerConnection.localDescription),
+            // Cada vez que haya datos de audio disponibles (cada 1 segundo), los envía al servidor
+            window.mediaRecorder.ondataavailable = async (event) => {
+              if (event.data.size > 0 && isStreaming) {
+                // Envío nativo continuo mediante HTTP POST sin librerías
+                fetch(STREAMING_SERVER_URL, {
+                  method: "POST",
+                  body: event.data,
+                  cache: "no-store",
+                }).catch((e) =>
+                  console.log("Transmitiendo paquete de audio..."),
                 );
-                generatedIdInput.value = b64Id;
-                idContainer.style.display = "block";
               }
             };
 
-            if (window.audioContext.state === "suspended") {
-              await window.audioContext.resume();
-            }
+            // Inicia la grabación y fragmenta el audio cada 1000 milisegundos (1 segundo)
+            window.mediaRecorder.start(1000);
 
-            // Cambios estéticos
             isStreaming = true;
             streamButton.classList.add("streaming");
             streamButton.innerText = "DETENER";
-            statusText.innerText = "TRANSMISIÓN CONTINUA ACTIVA";
+            statusText.innerText = "TRANSMITIENDO AL SERVIDOR";
             statusText.classList.add("online");
           } catch (error) {
-            console.error("Error en el hardware o red de audio:", error);
-            alert("Error al conectar con la consola/interfaz de sonido.");
+            console.error(error);
+            alert("Asegúrate de dar permisos al micrófono de tu equipo.");
           }
         } else {
-          // Apagado y destrucción total de canales
-          if (window.audioContext) window.audioContext.close();
+          if (window.mediaRecorder) window.mediaRecorder.stop();
           if (window.mediaStream)
             window.mediaStream.getTracks().forEach((track) => track.stop());
-          if (window.peerConnection) window.peerConnection.close();
 
           isStreaming = false;
-          idContainer.style.display = "none";
-          generatedIdInput.value = "";
           streamButton.classList.remove("streaming");
           streamButton.innerText = "EN VIVO";
           statusText.innerText = "APAGADO";
           statusText.classList.remove("online");
         }
       }
-
-      // Función nativa para hacer click en el ID y que se copie automáticamente al portapapeles
-      generatedIdInput.addEventListener("click", () => {
-        generatedIdInput.select();
-        document.execCommand("copy");
-        alert(
-          "¡ID de transmisión copiado al portapapeles! Envíalo a tus oyentes.",
-        );
-      });
-
-      // Hilo protector para evitar suspensiones por ahorro de energía
-      setInterval(() => {
-        if (
-          isStreaming &&
-          window.audioContext &&
-          window.audioContext.state === "suspended"
-        ) {
-          window.audioContext.resume();
-        }
-      }, 2000);
 
       streamButton.addEventListener("click", toggleStream);
     </script>
